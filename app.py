@@ -1,4 +1,3 @@
-# Mail-sender
 import gradio as gr
 import smtplib
 from email.mime.text import MIMEText
@@ -9,6 +8,7 @@ from apscheduler.triggers.date import DateTrigger
 from apscheduler.jobstores.sqlalchemy import SQLAlchemyJobStore
 import pytz
 import logging
+import os
 
 # Setup logging for debugging
 logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(message)s")
@@ -110,4 +110,6 @@ with gr.Blocks() as email_app:
     )
 
 # Run Gradio app with a public link
-email_app.launch(share=True)
+if __name__ == "__main__":
+    port = int(os.environ.get("PORT", 7860))
+    email_app.launch(server_name="0.0.0.0", server_port=port)
