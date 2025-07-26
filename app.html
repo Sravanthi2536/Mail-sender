@@ -1,0 +1,169 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>College Campus Routemap</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.7.1/dist/leaflet.css" />
+  <link rel="stylesheet" href="https://unpkg.com/leaflet-routing-machine@3.2.12/dist/leaflet-routing-machine.css" />
+  <style>
+    html, body { margin: 0; padding: 0; height: 100%; }
+    #map { width: 100%; height: 100%; }
+    #mic-button {
+      position: absolute;
+      bottom: 80px;
+      right: 20px;
+      z-index: 1000;
+      background: #28a745;
+      color: white;
+      border: none;
+      border-radius: 50%;
+      padding: 15px;
+      font-size: 20px;
+      box-shadow: 0 4px 8px rgba(0,0,0,0.3);
+    }
+  </style>
+</head>
+<body>
+<div id="map"></div>
+<button id="mic-button">🎤</button>
+
+<!-- Leaflet JS and Routing Plugin -->
+<script src="https://unpkg.com/leaflet@1.7.1/dist/leaflet.js"></script>
+<script src="https://unpkg.com/leaflet-routing-machine@3.2.12/dist/leaflet-routing-machine.min.js"></script>
+
+<script>
+const campusCenter = [16.5675, 81.5231];
+const map = L.map('map', {
+  maxBounds: [[16.5660, 81.5215], [16.5695, 81.5250]],
+  maxZoom: 20,
+  minZoom: 17
+}).setView(campusCenter, 18);
+
+L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+  attribution: '© OpenStreetMap contributors'
+}).addTo(map);
+
+const locations = {
+  "Dr.B.R smruthi vanam": [16.567618,81.523466],
+  "womens driving school": [16.567360,81.523023],
+  "Block A": [16.568029,81.522550],
+  "play ground & gym": [16.569659,81.522102],
+  "sbi atm":[16.568949,81.521301],
+  "sindhu, narmadha and ganga hostels":[16.569035,81.521210],
+  "vishnu school":[16.566881,81.521580]
+};
+
+Object.entries(locations).forEach(([name, coords]) => {
+  L.marker(coords).addTo(map).bindPopup(name);
+});
+
+let currentMarker, routeControl;
+
+function locateUser() {
+  if (!navigator.geolocation) {
+    alert("Geolocation is not supported by your browser.");
+    return;
+  }
+
+  navigator.geolocation.watchPosition(pos => {
+    const userLoc = [pos.coords.latitude, pos.coords.longitude];
+
+    if (!currentMarker) {
+      currentMarker = L.marker(userLoc, {
+        icon: L.icon({
+          iconUrl: 'https://maps.gstatic.com/mapfiles/ms2/micons/blue-dot.png',
+          iconSize: [32, 32]
+        })
+      }).addTo(map).bindPopup("You are here").openPopup();
+    } else {
+      currentMarker.setLatLng(userLoc);
+    }
+
+    map.setView(userLoc, map.getZoom());
+  }, err => {
+    alert("Location access denied or unavailable.");
+    console.error(err);
+  }, {
+    enableHighAccuracy: true,
+    maximumAge: 1000
+  });
+}
+
+locateUser();
+
+// Voice Assistant Code
+const micButton = document.getElementById("mic-button");
+const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+const recognition = new SpeechRecognition();
+recognition.lang = 'en-IN';
+recognition.continuous = false;
+recognition.interimResults = false;
+
+let isRecognizing = false;
+
+micButton.onclick = () => {
+  if (!isRecognizing) {
+    recognition.start();
+  }
+};
+
+recognition.onstart = () => {
+  isRecognizing = true;
+};
+
+recognition.onend = () => {
+  isRecognizing = false;
+};
+
+recognition.onerror = (event) => {
+  console.error("Speech recognition error:", event.error);
+  isRecognizing = false;
+};
+
+recognition.onresult = function (event) {
+  const spokenText = event.results[0][0].transcript.toLowerCase();
+  const dest = Object.entries(locations).find(([key]) => spokenText.includes(key.toLowerCase()));
+
+  if (dest && currentMarker) {
+    const from = currentMarker.getLatLng();
+    const to = dest[1];
+
+    if (routeControl) map.removeControl(routeControl);
+
+    routeControl = L.Routing.control({
+      waypoints: [from, L.latLng(to)],
+      routeWhileDragging: false,
+      createMarker: () => null,
+      router: new L.Routing.osrmv1({ serviceUrl: 'https://router.project-osrm.org/route/v1' }),
+      lineOptions: {
+        styles: [{ color: 'blue', opacity: 0.6, weight: 6 }]
+      }
+    }).on('routesfound', function (e) {
+      const steps = e.routes[0].instructions || [];
+      let i = 0;
+
+      function speakNextInstruction() {
+        if (i < steps.length) {
+          const instruction = steps[i].text;
+          speak(instruction);
+          i++;
+          setTimeout(speakNextInstruction, 7000); // Adjust time between instructions
+        }
+      }
+
+      speak(`Starting navigation to ${dest[0]}`);
+      speakNextInstruction();
+    }).addTo(map);
+  } else {
+    speak("Destination not recognized. Please try again.");
+  }
+};
+
+function speak(text) {
+  const utter = new SpeechSynthesisUtterance(text);
+  utter.lang = "en-IN"; // Change to "te-IN" or "hi-IN" for Telugu/Hindi
+  window.speechSynthesis.speak(utter);
+}
+</script>
+</body>
+</html>
